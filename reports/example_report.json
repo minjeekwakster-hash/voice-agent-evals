@@ -1,0 +1,65 @@
+{
+  "draft_id": "support-agent-v1.2.0-2026-03-18",
+  "agent_name": "support-agent",
+  "agent_version": "1.2.0",
+  "evaluated_at": "2026-03-18T09:00:00Z",
+  "current_stage": "EVALS_PASSED",
+  "scenario_count": 14,
+  "staging_signoff": false,
+  "preprod_passed": false,
+
+  "layer1": {
+    "passed": true,
+    "failure_reason": null,
+    "eval_results": [
+      {"name": "first_turn_latency",     "passed": true,  "pass_rate": 0.95, "failures": 1, "total": 20, "threshold": 0.90, "gate": "hard_block", "detail": "19/20 calls under 1200ms"},
+      {"name": "avg_call_latency",       "passed": true,  "pass_rate": 0.92, "failures": 2, "total": 20, "threshold": 0.90, "gate": "hard_block", "detail": "18/20 calls at acceptable latency"},
+      {"name": "dead_air_detection",     "passed": true,  "pass_rate": 1.00, "failures": 0, "total": 20, "threshold": null, "gate": "hard_block", "detail": "0 dead air events (allowed: 0)"},
+      {"name": "call_connection_success","passed": true,  "pass_rate": 1.00, "failures": 0, "total": 20, "threshold": null, "gate": "hard_block", "detail": "0 connection failures (allowed: 0)"},
+      {"name": "termination_handling",   "passed": true,  "pass_rate": 0.95, "failures": 1, "total": 20, "threshold": 0.90, "gate": "hard_block", "detail": "19/20 calls handled termination correctly"}
+    ]
+  },
+
+  "layer2": {
+    "passed": true,
+    "overall_score": 0.81,
+    "hard_block_failures": [],
+    "warnings": ["context_retention", "response_conciseness"],
+    "failure_reason": null,
+    "eval_scores": {
+      "prompt_conformance":    {"score": 0.87, "threshold": 0.80, "gate": "hard_block", "passed": true,  "reasoning": "Agent followed system prompt in 17/20 calls", "confidence": "high"},
+      "escalation_accuracy":   {"score": 0.93, "threshold": 0.90, "gate": "hard_block", "passed": true,  "reasoning": "Escalation logic was correct in all but one edge case", "confidence": "high"},
+      "query_handling":        {"score": 0.83, "threshold": 0.80, "gate": "hard_block", "passed": true,  "reasoning": "Most queries handled correctly, two partial responses", "confidence": "high"},
+      "loop_detection":        {"score": 1.00, "threshold": 1.00, "gate": "hard_block", "passed": true,  "reasoning": "No loops detected in any call", "confidence": "high"},
+      "hallucination_detection":{"score": 0.85,"threshold": 0.80, "gate": "hard_block", "passed": true,  "reasoning": "One instance of ungrounded claim in 20 calls", "confidence": "medium"},
+      "task_completion":       {"score": 0.79, "threshold": 0.75, "gate": "hard_block", "passed": true,  "reasoning": "Primary task completed in most calls; 3 partial completions", "confidence": "high"},
+      "context_retention":     {"score": 0.65, "threshold": 0.70, "gate": "warning",    "passed": false, "reasoning": "Agent forgot earlier context in 5 of 20 calls — flag for staging review", "confidence": "medium"},
+      "conversation_quality":  {"score": 0.78, "threshold": 0.70, "gate": "warning",    "passed": true,  "reasoning": "Tone generally appropriate, slight robotic quality in complex turns", "confidence": "medium"},
+      "objection_handling":    {"score": 0.74, "threshold": 0.70, "gate": "warning",    "passed": true,  "reasoning": "Handled most objections, struggled with price-related pushback", "confidence": "medium"},
+      "context_adherence":     {"score": 0.82, "threshold": 0.70, "gate": "warning",    "passed": true,  "reasoning": "Stayed within knowledge boundary in all but two calls", "confidence": "high"},
+      "response_conciseness":  {"score": 0.58, "threshold": 0.60, "gate": "warning",    "passed": false, "reasoning": "Responses frequently too long — common in complex queries", "confidence": "high"},
+      "greeting_quality":      {"score": 0.91, "threshold": 0.80, "gate": "warning",    "passed": true,  "reasoning": "Greeting was correct and professional in 18/20 calls", "confidence": "high"},
+      "turn_taking_flow":      {"score": 0.83, "threshold": 0.80, "gate": "warning",    "passed": true,  "reasoning": "Turn-taking natural in most calls; minor delay on complex queries", "confidence": "medium"}
+    }
+  },
+
+  "regression": {
+    "passed": true,
+    "baseline_version": "1.1.0",
+    "regressions": [],
+    "failure_reason": null
+  },
+
+  "calibration": {
+    "passed": true,
+    "overall_match_rate": 0.84,
+    "sample_size": 22,
+    "dimension_results": [
+      {"eval_name": "prompt_conformance",  "match_rate": 0.86, "human_avg": 0.84, "llm_avg": 0.87, "bias": 0.03, "sample_size": 22, "calibrated": true},
+      {"eval_name": "conversation_quality","match_rate": 0.81, "human_avg": 0.75, "llm_avg": 0.78, "bias": 0.03, "sample_size": 22, "calibrated": true},
+      {"eval_name": "escalation_accuracy", "match_rate": 0.86, "human_avg": 0.91, "llm_avg": 0.93, "bias": 0.02, "sample_size": 22, "calibrated": true}
+    ],
+    "uncalibrated_dims": [],
+    "recommendation": null
+  }
+}

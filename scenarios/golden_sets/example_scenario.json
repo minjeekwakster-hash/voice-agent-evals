@@ -1,0 +1,16 @@
+{
+  "scenario_id": "happy_path_001",
+  "persona": {
+    "id": "experienced_user",
+    "description": "User who knows the product and has a specific question"
+  },
+  "transcript": "Agent: Thank you for calling support. How can I help you today?\nUser: Hi, I need to update my payment method.\nAgent: I can help with that. Can you verify your account email?\nUser: Sure, it's user@example.com.\nAgent: Thank you. I've located your account. Would you like to add a new card or update an existing one?\nUser: Add a new one please.\nAgent: I'll transfer you to our secure payment update flow now. One moment.",
+  "expected_outcome": "task_completed",
+  "expected_escalation": false,
+  "tags": ["happy_path", "payment", "account_update"],
+  "metadata": {
+    "source": "sme_interview",
+    "human_vetted": true,
+    "added_at": "2026-03-18T00:00:00Z"
+  }
+}

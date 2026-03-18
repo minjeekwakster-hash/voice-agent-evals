@@ -1,0 +1,182 @@
+# voice-agent-ops pipeline configuration
+# Defines your agent, eval thresholds, and promotion stages.
+# Copy this file and edit for each agent you deploy.
+
+agent:
+  name: "support-agent"
+  version: "1.0.0"
+  description: "Inbound voice support agent"
+
+# ─────────────────────────────────────────────
+# LAYER 1: Platform Health
+# Runs first. Any hard block here stops the eval.
+# These are voice-stack checks, not agent quality checks.
+# ─────────────────────────────────────────────
+layer1:
+  evals:
+    - name: first_turn_latency
+      description: "Time from call connect to agent first word (ms)"
+      threshold_ms: 1200
+      pass_rate_required: 0.90   # 90% of calls must pass
+      gate: hard_block
+
+    - name: avg_call_latency
+      description: "Average response latency across all turns (ms)"
+      threshold_ms: 1200
+      pass_rate_required: 0.90
+      gate: hard_block
+
+    - name: dead_air_detection
+      description: "Calls with >3s silence mid-conversation"
+      allowed_failures: 0        # zero tolerance
+      gate: hard_block
+
+    - name: call_connection_success
+      description: "Call connected and agent responded within 3s"
+      allowed_failures: 0
+      gate: hard_block
+
+    - name: termination_handling
+      description: "Agent correctly handled call end or transfer"
+      pass_rate_required: 0.90
+      gate: hard_block
+
+# ─────────────────────────────────────────────
+# LAYER 2: Agent Quality
+# Only runs if Layer 1 passes.
+# Hard blocks fail the eval; warnings flag for human review.
+# ─────────────────────────────────────────────
+layer2:
+  llm_judge:
+    model: "claude-3-5-sonnet-20241022"  # any LiteLLM-compatible model
+    temperature: 0
+
+  evals:
+    # Hard blocks — any failure here blocks promotion
+    - name: prompt_conformance
+      description: "Agent followed its own system prompt and instructions"
+      threshold: 0.80
+      gate: hard_block
+      rationale: "If the agent isn't following its prompt, everything downstream is unreliable"
+
+    - name: escalation_accuracy
+      description: "Agent transferred to human when it should have, and didn't when it shouldn't"
+      threshold: 0.90
+      gate: hard_block
+      rationale: "Wrong escalation = real business damage"
+
+    - name: query_handling
+      description: "Agent correctly answered or addressed the caller's question"
+      threshold: 0.80
+      gate: hard_block
+      rationale: "Core competency"
+
+    - name: loop_detection
+      description: "Agent did not get stuck in a repetitive response loop"
+      threshold: 1.0             # zero loops tolerated
+      gate: hard_block
+      rationale: "A looping agent is a broken agent"
+
+    - name: hallucination_detection
+      description: "Agent did not fabricate information not in its context"
+      threshold: 0.80
+      gate: hard_block
+      rationale: "Fabricated information is a trust-killer"
+
+    - name: task_completion
+      description: "Agent completed the primary goal of the call"
+      threshold: 0.75
+      gate: hard_block
+      rationale: "The agent's primary job"
+
+    # Warnings — flag for human review at staging, don't block
+    - name: context_retention
+      description: "Agent remembered earlier parts of the conversation"
+      threshold: 0.70
+      gate: warning
+      rationale: "Important but harder to score reliably — flag for human review"
+
+    - name: conversation_quality
+      description: "Tone, naturalness, and overall call experience"
+      threshold: 0.70
+      gate: warning
+      rationale: "Subjective — better validated by human QA at staging"
+
+    - name: objection_handling
+      description: "Agent handled pushback or frustration appropriately"
+      threshold: 0.70
+      gate: warning
+      rationale: "Valuable signal but varies by scenario mix"
+
+    - name: context_adherence
+      description: "Agent stayed within its defined knowledge boundary"
+      threshold: 0.70
+      gate: warning
+      rationale: "Overlaps with hallucination — track but don't block separately"
+
+    - name: response_conciseness
+      description: "Agent responses were appropriately brief and direct"
+      threshold: 0.60
+      gate: warning
+      rationale: "Nice to have, not a dealbreaker"
+
+    - name: greeting_quality
+      description: "Agent opened the call correctly and professionally"
+      threshold: 0.80
+      gate: warning
+      rationale: "Sets the tone but rarely causes failures"
+
+    - name: turn_taking_flow
+      description: "Agent handled interruptions and pauses naturally"
+      threshold: 0.80
+      gate: warning
+      rationale: "Voice-specific UX — important but not business-critical"
+
+# ─────────────────────────────────────────────
+# Regression
+# ─────────────────────────────────────────────
+regression:
+  tolerance: 0.05                # hard block evals cannot drop more than 5pp from baseline
+  baseline_report: null          # path to previous passing report, set at runtime
+
+# ─────────────────────────────────────────────
+# Autorater Calibration
+# ─────────────────────────────────────────────
+calibration:
+  min_match_rate: 0.80           # LLM judge must agree with human scores >=80% of the time
+  sample_size: 20                # minimum calls needed to run calibration
+  calibrate_on:
+    - prompt_conformance
+    - conversation_quality
+    - escalation_accuracy
+
+# ─────────────────────────────────────────────
+# Promotion Stages
+# ─────────────────────────────────────────────
+promotion:
+  stages:
+    - name: test
+      requires: [layer1_pass, layer2_hard_blocks_pass, regression_pass]
+      human_review: false
+
+    - name: staging
+      requires: [layer1_pass, layer2_hard_blocks_pass, regression_pass, min_10_scenarios]
+      human_review: true
+      human_review_min_scenarios: 10
+      calibration_required: true
+
+    - name: preprod
+      requires: [layer1_pass, layer2_hard_blocks_pass, regression_pass, staging_human_signoff]
+      human_review: false
+      dry_run: true
+
+    - name: prod
+      requires: [preprod_pass]
+      canary:
+        enabled: true
+        initial_traffic_pct: 10
+        full_rollout_after_hours: 24
+        monitor:
+          - avg_call_latency
+          - task_completion
+          - escalation_accuracy
