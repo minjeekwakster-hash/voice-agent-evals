@@ -122,7 +122,7 @@ Calibrate:
 ## Quickstart
 
 ```bash
-git clone https://github.com/minjeekwakster-hash/voice-agent-ops
+git clone https://github.com/minjeekwakster-hash/voice-agent-evals
 cd voice-agent-ops
 pip install -r requirements.txt
 export ANTHROPIC_API_KEY=your_key_here   # or any LiteLLM-supported model
