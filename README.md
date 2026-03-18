@@ -271,4 +271,4 @@ Bot-to-bot call simulation and canary traffic routing are intentionally out of s
 
 ## Built by
 
-[Minji Gwak](https://github.com/minjeekwakster-hash) — Senior PM with engineering background. Built the production version of this pipeline at Mudflap, where it scaled a Voice AI platform to 200+ daily sessions and reduced agent deployment cycle time by 90%+.
+[Minji Gwak](https://github.com/minjeekwakster-hash) — Senior PM with engineering background. Built the production version of this pipeline at a fintech company, where it scaled a Voice AI platform to 200+ daily sessions and reduced agent deployment cycle time by 90%+.
