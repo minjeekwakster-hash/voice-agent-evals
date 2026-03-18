@@ -194,12 +194,34 @@ Route your fix to the right layer — don't rewrite the prompt when the problem 
 
 Use `feedback/loop.py` for the LLM-assisted diagnosis prompt — paste your config, eval results, and failing transcripts to get a structured root cause analysis.
 
+```python
+from feedback.loop import get_diagnosis_prompt
+
+# Pull eval results directly from a pipeline report
+prompt = get_diagnosis_prompt(
+    agent_config="[your system prompt + voice config]",
+    transcripts=["transcript 1...", "transcript 2..."],
+    report_path="reports/eval_report.json"   # auto-extracts failing evals
+)
+# Send `prompt` to Claude, GPT-4o, or any LLM
+```
+
+---
+
+## Prompts
+
+The `prompts/` directory contains production-hardened templates built from patterns used to achieve 26–30% conversion from connected calls.
+
+**[`prompts/system_prompt_template.md`](prompts/system_prompt_template.md)** — A structured starter template for your agent's system prompt. Annotated with which Layer 2 eval dimensions each section protects, so when a score drops you know exactly where to look.
+
+**[`prompts/voice_config_reference.md`](prompts/voice_config_reference.md)** — LLM and voice stack tuning guide. Covers `max_tokens` for interruption prevention, `temperature` for naturalness vs. script adherence, STT model selection, TTS evaluation criteria, and end-of-turn detection. Includes a diagnostic checklist for separating Layer D (config) failures from Layer A (prompt) failures.
+
 ---
 
 ## Project structure
 
 ```
-voice-agent-ops/
+voice-agent-evals/
 ├── config/
 │   └── pipeline.yaml          # Agent config, eval thresholds, stage requirements
 ├── evals/
@@ -210,6 +232,9 @@ voice-agent-ops/
 ├── pipeline/
 │   ├── state_machine.py       # EDITING → TEST → EVALS → STAGING → PROD
 │   └── promote.py             # Gate enforcement per stage
+├── prompts/
+│   ├── system_prompt_template.md   # Starter template, annotated with eval dimensions
+│   └── voice_config_reference.md  # LLM + STT/TTS tuning guide
 ├── scenarios/
 │   ├── generate.py            # LLM-assisted scenario generation
 │   └── golden_sets/           # Vetted eval scenarios

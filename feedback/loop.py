@@ -48,10 +48,10 @@ FAILURE_LAYERS = {
     }
 }
 
-LLM_DIAGNOSIS_PROMPT = """You are a voice AI agent operations expert.
+LLM_DIAGNOSIS_PROMPT = """You are a voice AI agent operations expert specializing in production voice agent quality.
 Diagnose failures in my voice agent and recommend specific fixes.
 
-## Agent configuration
+## Current agent configuration
 {agent_config}
 
 ## Eval results summary
@@ -60,21 +60,30 @@ Diagnose failures in my voice agent and recommend specific fixes.
 ## Failing call transcripts
 {transcripts}
 
-## What I need:
+## What I need
 
 1. ROOT CAUSE ANALYSIS: For each failing eval, identify whether the root cause is:
-   - Layer A (Prompt): agent says wrong thing, doesn't follow instructions
-   - Layer B (Tool/RAG): wrong tool call, stale knowledge, bad retrieval
-   - Layer C (Routing): wrong escalation decision
-   - Layer D (Voice config): latency, STT, interruption, dead air
+   - Layer A (Prompt): agent said the wrong thing, hallucinated, didn't follow instructions, or went off-brand
+   - Layer B (Tool/RAG): wrong tool call, stale knowledge base, bad retrieval, incorrect data mapping
+   - Layer C (Routing): wrong escalation decision — transferred when it shouldn't have, or didn't transfer when it should have
+   - Layer D (Voice config): latency, STT transcription error, TTS naturalness, end-of-turn detection, token budget
 
-2. PRIORITY ORDER: Which failure to fix first (highest impact)
+   Cite the specific transcript evidence that supports each diagnosis.
 
-3. SPECIFIC FIX: Exact change to make for the top 2-3 failures
+2. SPECIFIC FIXES: For each root cause, provide the exact change — not "strengthen the prompt" but:
+   - Layer A: the actual text to add, modify, or remove from the system prompt
+   - Layer B: the specific tool definition or knowledge base entry to update
+   - Layer C: the exact escalation condition to add or modify
+   - Layer D: the specific config parameter and recommended value (e.g., max_tokens: 260, temperature: 0.32)
 
-4. REGRESSION RISK: Which other evals might be affected by each fix
+3. REGRESSION RISK: For each fix, flag which existing passing evals might be affected. Which golden set scenarios should be re-run after this change?
 
-Return as structured JSON."""
+4. PRIORITY ORDER: If there are multiple fixes, rank them by:
+   - Hard-block eval failures first
+   - Fixes that address multiple failing evals at once
+   - Fixes with lowest regression risk last
+
+Return as structured JSON with keys: root_causes, specific_fixes, regression_risks, priority_order."""
 
 
 @dataclass
@@ -170,16 +179,66 @@ def update_golden_set(
     return path
 
 
-def get_diagnosis_prompt(agent_config: str, eval_summary: str, transcripts: list[str]) -> str:
+def get_diagnosis_prompt(
+    agent_config: str,
+    transcripts: list[str],
+    eval_summary: Optional[str] = None,
+    report_path: Optional[str] = None,
+) -> str:
     """
     Returns the filled LLM diagnosis prompt for use with your LLM of choice.
-    Paste the output into Claude, GPT-4, or run programmatically.
+    Paste the output into Claude, GPT-4o, or run programmatically via LiteLLM.
+
+    Args:
+        agent_config:  The agent's full system prompt and voice config (paste as string)
+        transcripts:   List of failing call transcript strings (3-5 recommended)
+        eval_summary:  Eval results as a string (optional if report_path is provided)
+        report_path:   Path to a pipeline eval report JSON — if provided, extracts
+                       failing evals automatically and formats the summary
+
+    Returns:
+        Filled prompt string ready to send to an LLM
     """
+    if eval_summary is None and report_path is not None:
+        with open(report_path) as f:
+            report = json.load(f)
+        eval_summary = _format_report_summary(report)
+    elif eval_summary is None:
+        eval_summary = "[No eval summary provided]"
+
     return LLM_DIAGNOSIS_PROMPT.format(
         agent_config=agent_config,
         eval_summary=eval_summary,
         transcripts="\n\n---\n\n".join(transcripts[:5])
     )
+
+
+def _format_report_summary(report: dict) -> str:
+    """Format a pipeline eval report JSON into a readable diagnosis summary."""
+    lines = []
+    lines.append(f"Agent: {report.get('agent_name')} v{report.get('agent_version')}")
+    lines.append(f"Stage: {report.get('current_stage')}")
+
+    l1 = report.get("layer1", {})
+    lines.append(f"\nLayer 1 (Platform): {'PASS' if l1.get('passed') else 'FAIL'}")
+    for r in l1.get("eval_results", []):
+        if not r["passed"]:
+            lines.append(f"  FAIL {r['name']}: {r['detail']}")
+
+    l2 = report.get("layer2", {})
+    lines.append(f"\nLayer 2 (Agent Quality): {'PASS' if l2.get('passed') else 'FAIL'}")
+    lines.append(f"Overall score: {l2.get('overall_score')}")
+    for name, e in l2.get("eval_scores", {}).items():
+        status = "FAIL" if not e["passed"] else ("WARN" if e["gate"] == "warning" else "PASS")
+        lines.append(f"  {status} {name}: score={e['score']} threshold={e['threshold']} — {e.get('reasoning', '')}")
+
+    reg = report.get("regression", {})
+    if not reg.get("passed"):
+        lines.append(f"\nRegression: FAIL vs baseline {reg.get('baseline_version')}")
+        for r in reg.get("regressions", []):
+            lines.append(f"  {r['eval_name']}: {r['current_score']} vs {r['baseline_score']} (delta {r['delta']})")
+
+    return "\n".join(lines)
 
 
 def print_layer_guide():
